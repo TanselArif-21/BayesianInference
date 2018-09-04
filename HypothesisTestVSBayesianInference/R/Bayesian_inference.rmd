@@ -1,0 +1,160 @@
+---
+title: "Inference for a single mean with known variance"
+output: statsr:::statswithr_lab
+---
+
+### Load packages
+
+```{r load-packages, message=FALSE}
+library(statsr)
+library(dplyr)
+library(ggplot2)
+```
+
+
+### The data
+
+Load the data
+
+```{r load-data}
+set.seed(15)
+margins <- rnorm(24,150,800)
+df <- data.frame("Margins" = margins)
+```
+
+```{r str}
+str(df)
+mean(df$Margins)
+sd(df$Margins)
+```
+
+## T-Test one-tail with sig. level = 0.05
+
+Let 
+
+$$H_0: \mu = 0$$
+$$H_0: \mu > 0$$
+
+```{r}
+SE = sd(df$Margins)/sqrt(24)
+t = (mean(df$Margins))/SE
+pv = pt(q=t,df=23,lower.tail = FALSE)
+pv
+```
+
+There is not sufficient data in order for us to reject H_0. In order to relax the condition, we would have to adjust the sig. level $\alpha$. It is not clear or easy to justify what increasing $\alpha$ actually means beyond "we want to be less confident".
+
+## EDA and Bayesian Inference - `margins`
+
+As with the frequentist approach we use these data to perform basic inference on $\mu$ the average. To do this we will use the `bayes_inference` function which will allow us to construct credible intervals and calculate Bayes factors for a variety of different circumstances.
+
+In order to construct a credible interval we must first provide the data, and then indicate that we want a credible interval (`type="ci"`) for a mean (`statistic="mean"`).
+
+```{r}
+bayes_inference(y = margins, data = df, statistic = "mean", type = "ci")
+```
+
+The above result gives us a 95% Credible Interval. i.e. there is a 95% probability that the mean lies within this range.
+
+The credible level for the interval can be specified using the `cred_level` argument.
+
+```{r}
+bayes_inference(y = margins, data = df, statistic = "mean", type = "ci", cred_level = 0.99)
+```
+
+We can also conduct a Bayesian hypothesis test by calculating a Bayes factor, let's test to see if the average is significantly different from 0. 
+
+$$ H_1: \mu = 0 $$
+$$ H_2: \mu \ne 0 $$
+
+To conduct this hypothesis test we will again use the `bayes_inference` function but this time specify `type="ht"`, we will then also need to provide the `null` and `alternative` arguments which define the null value (0) and the type of alternative hypothesis (`"twosided"`).
+
+```{r}
+BI = bayes_inference(y = margins, data = df, statistic = "mean", type = "ht", null = 0, alternative = "twosided")
+print(BI)
+```
+
+The graphical results show the magnitude of $P(H_1 ~|~ data)$ with the blue line and the posterior of $\mu$ given $H_2$ (scaled by $P(H_2 ~|~ data)$) via the black curve. The 95% credible interval for $\mu|data,H_2$ is given in grey.
+
+```{r}
+BI$post_H1
+BI$post_H2
+```
+
+
+Here, we have $P(H_1 ~|~ data) = 0.581$ and $P(H_2 ~|~ data) = 0.419$. So 
+
+$$P(\mu > 0) = P(\mu > 0 ~|~ H_1)*P(H_1) + P(\mu > 0 ~|~ H_2)*P(H_2) = P(\mu > 0 ~|~ H_2)*P(H_2)$$
+
+The posterior distribution for $\mu$ is $\mu ~ N(1299.734,1931.564^2)$. So $P(\mu > 0 ~|~ H_2) = P(z > -\bar{x}/s ~|~ H_2)$ is
+
+```{r}
+pnorm(q=-0.637,lower.tail = FALSE)
+```
+
+$$P(\mu > 0) = P(\mu > 0 ~|~ H_2)*P(H_2) = 0.7379376*0.419 = 0.3091959$$
+
+Here, instead of simply rejecting the idea that the changes affected the mean margin, a probability is assigned to the notion.
+
+Also, instead of simply changing the significance level in order to be able to reject the null hypothesis, here, we can update prior distribution ($\mu ~ N(10,\sigma^2)$) in order to include our prior information into the model.
+
+##New Data
+
+```{r}
+set.seed(1)
+margins <- rnorm(24,350,1000)
+margins <- c(0,-0.03,-0.01,0.05,-0.03,0.08,-0.01,-0.01,0.03,0.02,-0.03,0.09,-0.01,0.04,-0.02,0,0.1,0.08,0.08,0.05,0,0.06,0.04,0.02)
+df <- data.frame("Margins" = margins)
+
+#df$margins = margins
+#data(DataFrame)
+```
+
+```{r}
+str(df)
+mean(df$Margins)
+sd(df$Margins)
+```
+
+
+## T-Test one-tail with sig. level = 0.05
+
+Let 
+
+$$H_0: \mu = 0$$
+$$H_0: \mu > 0$$
+
+```{r}
+SE = sd(df$Margins)/sqrt(24)
+t = (mean(df$Margins))/SE
+pv = pt(q=t,df=23,lower.tail = FALSE)
+pv
+```
+
+There is sufficient data in order for us to reject H_0. However, you can't say that there is a $1-0.0041=99.6%$ probability that the changes increase the margins. This is because we don't consider the probability of $H_0$ itself.
+
+## Bayesian Approach
+
+
+```{r}
+bayes_inference(y = margins, data = df, statistic = "mean", type = "ci")
+```
+
+```{r}
+BI=bayes_inference(y = margins, data = df, statistic = "mean", type = "ht", null = 0, alternative = "twosided")
+BI
+```
+
+```{r}
+y_bar = mean(df$Margins)
+s = sd(df$Margins)
+p = pnorm(q=0,mean=y_bar,sd = s,lower.tail = FALSE)
+p
+```
+
+
+$$P(\mu > 0) = P(\mu > 0 ~|~ H_1)*P(H_1) + P(\mu > 0 ~|~ H_2)*P(H_2) = P(\mu > 0 ~|~ H_2)*P(H_2)=0.8578909*0.7227391 = 0.6200313$$
+
+Instead of just saying we reject $H_0$, now we can say that there is a 62% probability that the changes have made a significant impact.
+
+If we want to show a one-sided probability (i.e. we assume that if the mean comes from a different distribution, it is greater than 0) we take $P(\mu > 0) = P(\mu > 0|H_0) \times P(H_0)) + P(\mu > 0|H_1) \times P(H_1))/(P(H_0) + P(\mu > 0 | H_1)*P(H_1))$
